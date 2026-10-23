@@ -1,0 +1,22 @@
+models:
+  - {id: "m0", name: "cheap",  tier: 0.0, price_per_1k_tokens: 0.0001, bucket_capacity: 10000.0, refill_rate_per_sec: 2000.0, service_rate_per_sec: 5.0}
+  - {id: "m1", name: "mid",    tier: 0.5, price_per_1k_tokens: 0.0008, bucket_capacity: 6000.0,  refill_rate_per_sec: 1000.0, service_rate_per_sec: 3.0}
+  - {id: "m2", name: "strong", tier: 1.0, price_per_1k_tokens: 0.0050, bucket_capacity: 3000.0,  refill_rate_per_sec: 400.0,  service_rate_per_sec: 1.5}
+cloud:
+  queue_cap: 20.0          # Q_k never exceeds this (prevents unbounded waits)
+  inter_task_gap_s: 1.0    # idle time advanced between consecutive tasks in a stream
+  price_min: 0.5
+  price_max: 3.0
+reward: {lambda_c: 10.0, lambda_l: 0.05}
+training:
+  lr_critic: 0.005
+  lr_index: 0.0005
+  gamma: 0.95
+  retrain_every_n: 100
+  epsilon_start: 0.30
+  epsilon_end: 0.05
+  epsilon_decay_runs: 1500   # linear
+  replay_size: 5000
+  batch_size: 64
+  train_runs: 3000           # pipeline runs streamed from train tasks
+experiment: {sigmas: [0.0, 0.25, 0.5, 1.0], seeds: [0,1,2,3,4], train_ratio: 0.67}

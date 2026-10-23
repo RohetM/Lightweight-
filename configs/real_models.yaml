@@ -1,0 +1,34 @@
+# Real models configuration template (PRD Section 4 & Gate 1)
+# HUMAN DECISION: Confirm chosen models, official pricing (cite provider docs) and RPM/TPM limits.
+models:
+  - id: "m0"
+    name: "gpt-4o-mini"         # Example cheap tier model
+    tier: 0.0
+    price_per_1k_tokens: 0.00015 # Cite: OpenAI pricing docs ($0.15 / 1M input)
+    bucket_capacity: 10000.0     # TPM token bucket capacity
+    refill_rate_per_sec: 2000.0
+    service_rate_per_sec: 5.0
+  - id: "m1"
+    name: "claude-3-5-haiku"    # Example mid tier model
+    tier: 0.5
+    price_per_1k_tokens: 0.00100 # Cite: Anthropic pricing docs ($1.00 / 1M input)
+    bucket_capacity: 6000.0
+    refill_rate_per_sec: 1000.0
+    service_rate_per_sec: 3.0
+  - id: "m2"
+    name: "gpt-4o"              # Example strong tier model
+    tier: 1.0
+    price_per_1k_tokens: 0.00500 # Cite: OpenAI pricing docs ($5.00 / 1M input)
+    bucket_capacity: 3000.0
+    refill_rate_per_sec: 400.0
+    service_rate_per_sec: 1.5
+
+cloud:
+  queue_cap: 20.0
+  inter_task_gap_s: 1.0
+  price_min: 0.5
+  price_max: 3.0
+
+reward:
+  lambda_c: 10.0   # To be re-tuned on training tasks only (Gate 1)
+  lambda_l: 0.05
