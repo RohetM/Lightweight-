@@ -16,6 +16,8 @@ from router.baselines import (
     RouteLLMPolicy,
     CurrentStateOracle,
     ClairvoyantOracle,
+    BestStaticPathPolicy,
+    find_best_static_path_on_train,
 )
 
 
@@ -97,6 +99,7 @@ def test_m4_all_seven_policies_interface(config, trace_cache):
         RouteLLMPolicy(),
         CurrentStateOracle(config["reward"], config["models"]),
         ClairvoyantOracle(config["reward"], config["models"]),
+        BestStaticPathPolicy((1, 1, 1)),
     ]
 
     for pol in policies:
@@ -107,3 +110,19 @@ def test_m4_all_seven_policies_interface(config, trace_cache):
         assert len(rec["hops"]) == 3
         for h in rec["hops"]:
             assert h["arm"] in [0, 1, 2]
+
+
+def test_m4_find_best_static_path_on_train(config, trace_cache):
+    """PRD M4: Verify best static path search identifies a valid 3-hop path."""
+    tasks = trace_cache.task_ids()[:10]
+    best_p = find_best_static_path_on_train(
+        train_task_ids=tasks,
+        trace_cache=trace_cache,
+        reward_config=config["reward"],
+        models_config=config["models"],
+        cloud_config=config["cloud"],
+        sigma=0.0,
+        seed=42,
+    )
+    assert len(best_p) == 3
+    assert all(a in [0, 1, 2] for a in best_p)

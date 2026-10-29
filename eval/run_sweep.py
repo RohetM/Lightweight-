@@ -29,6 +29,8 @@ from router.baselines import (
     RouteLLMPolicy,
     CurrentStateOracle,
     ClairvoyantOracle,
+    BestStaticPathPolicy,
+    find_best_static_path_on_train,
 )
 from router.whittle_router import WhittleRouter
 
@@ -162,7 +164,13 @@ def train_router_variant(
                     done,
                 )
 
-        if len(router.replay) >= router.batch_size:
+        retrain_every_n = config["training"].get("retrain_every_n", 100)
+        retrain_steps = config["training"].get("retrain_steps", 200)
+
+        if (run_idx + 1) % retrain_every_n == 0 and len(router.replay) >= router.batch_size:
+            for _ in range(retrain_steps):
+                router.train_step()
+        elif len(router.replay) >= router.batch_size:
             router.train_step()
 
     return router
@@ -215,19 +223,30 @@ def run_experiment_sweep(
     router_static_wrapped = StaticStateRouterWrapper(router_static)
     print("[Training Phase] Completed.")
 
+    # Find BestStaticPath on TRAIN tasks for each sigma
+    print("\n[BestStaticPath] Finding best static path on train tasks for each sigma...")
+    best_static_paths: dict[float, tuple[int, int, int]] = {}
+    for sigma in sigmas:
+        b_p = find_best_static_path_on_train(
+            train_tasks, trace_cache, config["reward"], config["models"], config["cloud"], sigma=sigma, seed=42
+        )
+        best_static_paths[sigma] = b_p
+        print(f"  sigma={sigma}: Best static path on train={b_p}")
+
     # Prepare methods dictionary
     static_methods = {
-        "Random": lambda seed: RandomPolicy(seed=seed),
-        "Cheapest": lambda seed: CheapestPolicy(),
-        "Strongest": lambda seed: StrongestPolicy(),
-        "Greedy": lambda seed: GreedyPolicy(config["models"]),
-        "RouteLLM": lambda seed: RouteLLMPolicy(),
-        "CurrentStateOracle": lambda seed: CurrentStateOracle(config["reward"], config["models"]),
-        "ClairvoyantOracle": lambda seed: ClairvoyantOracle(config["reward"], config["models"]),
-        "Proposed_Shapley": lambda seed: router_shapley,
-        "Proposed_LOO": lambda seed: router_loo,
-        "Proposed_NoCredit": lambda seed: router_nocredit,
-        "Proposed_StaticState": lambda seed: router_static_wrapped,
+        "Random": lambda seed, sig: RandomPolicy(seed=seed),
+        "Cheapest": lambda seed, sig: CheapestPolicy(),
+        "Strongest": lambda seed, sig: StrongestPolicy(),
+        "Greedy": lambda seed, sig: GreedyPolicy(config["models"]),
+        "RouteLLM": lambda seed, sig: RouteLLMPolicy(),
+        "BestStaticPath": lambda seed, sig: BestStaticPathPolicy(path=best_static_paths[sig]),
+        "CurrentStateOracle": lambda seed, sig: CurrentStateOracle(config["reward"], config["models"]),
+        "ClairvoyantOracle": lambda seed, sig: ClairvoyantOracle(config["reward"], config["models"]),
+        "Proposed_Shapley": lambda seed, sig: router_shapley,
+        "Proposed_LOO": lambda seed, sig: router_loo,
+        "Proposed_NoCredit": lambda seed, sig: router_nocredit,
+        "Proposed_StaticState": lambda seed, sig: router_static_wrapped,
     }
 
     all_run_records = []
@@ -243,7 +262,7 @@ def run_experiment_sweep(
             print(f"  Evaluating sigma={sigma}, seed={seed}...")
 
             for method_name, policy_builder in static_methods.items():
-                policy = policy_builder(seed)
+                policy = policy_builder(seed, sigma)
                 # One persistent task stream per (sigma, seed) run (PRD M8 & M2)
                 cloud = CloudEnv(config["models"], config["cloud"], sigma=sigma, seed=seed)
                 pipeline = PipelineEnv(
@@ -289,25 +308,33 @@ def run_experiment_sweep(
     summary_df.to_csv(summary_csv_path, index=False)
     print(f"[Results] Saved summary table to {summary_csv_path}")
 
-    # 4. Compute Paired Delta vs RouteLLM with 95% Bootstrap CI (PRD M8 & S6)
+    # 4. Compute Paired Delta vs RouteLLM and BestStaticPath with 95% Bootstrap CI (PRD M8 & S6)
     delta_rows = []
     for sigma in sigmas:
         sub_sigma = runs_df[runs_df["sigma"] == sigma]
         # Match by (task_id, seed)
         prop_runs = sub_sigma[sub_sigma["method"] == "Proposed_Shapley"].sort_values(["task_id", "seed"])
         route_runs = sub_sigma[sub_sigma["method"] == "RouteLLM"].sort_values(["task_id", "seed"])
+        static_runs = sub_sigma[sub_sigma["method"] == "BestStaticPath"].sort_values(["task_id", "seed"])
 
         u_prop = prop_runs["utility"].values
         u_route = route_runs["utility"].values
+        u_static = static_runs["utility"].values
 
-        mean_diff, ci_lower, ci_upper = compute_paired_bootstrap_ci(
+        mean_diff_r, ci_lower_r, ci_upper_r = compute_paired_bootstrap_ci(
             u_prop, u_route, n_resamples=10000, alpha=0.05, seed=42
+        )
+        mean_diff_s, ci_lower_s, ci_upper_s = compute_paired_bootstrap_ci(
+            u_prop, u_static, n_resamples=10000, alpha=0.05, seed=42
         )
         delta_rows.append({
             "sigma": sigma,
-            "delta_mean": mean_diff,
-            "ci_lower": ci_lower,
-            "ci_upper": ci_upper,
+            "delta_mean": mean_diff_r,
+            "ci_lower": ci_lower_r,
+            "ci_upper": ci_upper_r,
+            "delta_static_mean": mean_diff_s,
+            "ci_static_lower": ci_lower_s,
+            "ci_static_upper": ci_upper_s,
         })
 
     delta_df = pd.DataFrame(delta_rows)

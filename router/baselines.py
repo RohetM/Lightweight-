@@ -254,7 +254,70 @@ class ClairvoyantOracle:
         return self._planned_path[hop]
 
 
+class BestStaticPathPolicy:
+    """Choose, on TRAIN tasks only, the single model per hop (27 options) with the highest
+    mean utility at each sigma; apply it deterministically on test.
+
+    Implements PRD Section 6 (M4) - supplementary baseline.
+    """
+
+    def __init__(self, path: tuple[int, int, int] = (1, 1, 1)):
+        self.path = tuple(int(x) for x in path)
+
+    def select(
+        self,
+        obs: np.ndarray,
+        hop: int,
+        task_id: str,
+        trace_cache: TraceCache,
+        cloud_env: CloudEnv,
+    ) -> int:
+        return self.path[hop]
+
+
+def find_best_static_path_on_train(
+    train_task_ids: list[str],
+    trace_cache: TraceCache,
+    reward_config: dict[str, float],
+    models_config: list[dict[str, Any]],
+    cloud_config: dict[str, Any],
+    sigma: float,
+    seed: int = 42,
+) -> tuple[int, int, int]:
+    """Find the single path out of 27 with the highest mean utility on train tasks at sigma.
+
+    Evaluates each candidate path (a0, a1, a2) on the training task stream under sigma.
+    """
+    from envs.pipeline_env import PipelineEnv
+
+    best_p = (0, 0, 0)
+    best_u = -float("inf")
+
+    for a0 in range(len(models_config)):
+        for a1 in range(len(models_config)):
+            for a2 in range(len(models_config)):
+                candidate = (a0, a1, a2)
+                candidate_policy = BestStaticPathPolicy(candidate)
+                cloud = CloudEnv(models_config, cloud_config, sigma=sigma, seed=seed)
+                pipeline = PipelineEnv(trace_cache, cloud, reward_config, models_config)
+
+                tot_u = 0.0
+                for tid in train_task_ids:
+                    rec = pipeline.run_task(tid, candidate_policy, seed=seed)
+                    tot_u += rec["utility"]
+                    cloud.advance(cloud_config.get("inter_task_gap_s", 1.0))
+
+                mean_u = tot_u / max(1, len(train_task_ids))
+                if mean_u > best_u:
+                    best_u = mean_u
+                    best_p = candidate
+
+    return best_p
+
+
 # Implementation Note:
 # Implemented all 7 baseline policies and oracles per PRD Section 6 (M4).
+# BestStaticPathPolicy added per user request: evaluates all 27 paths on train tasks
+# under each target sigma and applies the top static path on test.
 # ClairvoyantOracle evaluates exact seeded rollouts over all 27 paths.
 # Normalized performance metric implemented per formula.

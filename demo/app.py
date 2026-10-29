@@ -2,10 +2,17 @@
 Implements PRD section 6 (M9), Section 0 (Rule 5).
 """
 import os
+import sys
+from pathlib import Path
 import time
 import pandas as pd
 import streamlit as st
 import yaml
+
+# Ensure repo root is in sys.path for streamlit execution
+repo_root = Path(__file__).resolve().parent.parent
+if str(repo_root) not in sys.path:
+    sys.path.insert(0, str(repo_root))
 
 from envs.trace_cache import TraceCache
 from envs.cloud_env import CloudEnv
@@ -46,13 +53,13 @@ def main() -> None:
 
     # Sidebar controls
     st.sidebar.header("Cloud Simulation Parameters")
-    sigma = st.sidebar.slider("Cloud Volatility ($\sigma$)", min_value=0.0, max_value=1.0, value=0.5, step=0.25)
+    sigma = st.sidebar.slider(r"Cloud Volatility ($\sigma$)", min_value=0.0, max_value=1.0, value=0.5, step=0.25)
     seed = st.sidebar.number_input("Random Seed", value=42, step=1)
 
     # KPI Banner (PRD M9)
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        st.metric("Volatility ($\sigma$)", f"{sigma:.2f}")
+        st.metric(r"Volatility ($\sigma$)", f"{sigma:.2f}")
     with col2:
         st.metric("Target Decision Time", "< 0.1 ms", delta="-0.08 ms (NumPy)")
     with col3:
@@ -160,7 +167,7 @@ def main() -> None:
 
     with tab_info:
         st.subheader("System Architecture and Formal Framing")
-        st.markdown("""
+        st.markdown(r"""
         - **3-Hop Pipeline**: Hop 0 (Planner) → Hop 1 (Executor) → Hop 2 (Verifier).
         - **Model Candidates**: m0 (cheap), m1 (mid), m2 (strong).
         - **Whittle-Inspired Heuristic**: Pure NumPy forward pass ($< 0.1$ ms target) trained with two-timescale updates (Fast Critic / Slow Index).

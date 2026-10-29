@@ -1,26 +1,54 @@
-# Real models configuration template (PRD Section 4 & Gate 1)
-# HUMAN DECISION: Confirm chosen models, official pricing (cite provider docs) and RPM/TPM limits.
+# Real models configuration (PRD Section 4 & Gate 1)
+# =============================================================
+# !! GATE 1 — HUMAN MUST VERIFY AND FILL IN ALL TODO ITEMS !!
+# =============================================================
+# Instructions:
+#   1. Choose 3 real models (cheap / mid / strong) and fill in each TODO.
+#   2. Copy current prices from the provider's official pricing page (add URL citation).
+#   3. Set bucket_capacity and refill_rate_per_sec from your account's TPM/RPM limits.
+#   4. After Gate 1, re-tune lambda_c and lambda_l on TRAINING tasks only (never test split).
+#   5. Do not run data/collect_traces.py without guide sign-off on these values.
+# =============================================================
+
 models:
   - id: "m0"
-    name: "gpt-4o-mini"         # Example cheap tier model
+    # TODO(Gate1-human): Confirm model name. Current placeholder: gpt-4o-mini.
+    # Verify this is the cheapest production tier available to you.
+    name: "gpt-4o-mini"
     tier: 0.0
-    price_per_1k_tokens: 0.00015 # Cite: OpenAI pricing docs ($0.15 / 1M input)
-    bucket_capacity: 10000.0     # TPM token bucket capacity
-    refill_rate_per_sec: 2000.0
+    # TODO(Gate1-human): Verify price from https://openai.com/api/pricing/ on the collection date.
+    # Current placeholder: $0.15/1M input tokens = $0.00015/1k. MUST be updated before collection.
+    price_per_1k_tokens: 0.00015
+    # TODO(Gate1-human): Set from your OpenAI account TPM limit for gpt-4o-mini (tier 1 = 200k TPM).
+    # bucket_capacity = TPM in tokens; refill_rate_per_sec = TPM / 60.
+    bucket_capacity: 10000.0      # PLACEHOLDER — check your account limits
+    refill_rate_per_sec: 2000.0   # PLACEHOLDER — check your account limits
     service_rate_per_sec: 5.0
+
   - id: "m1"
-    name: "claude-3-5-haiku"    # Example mid tier model
+    # TODO(Gate1-human): Confirm model name. Current placeholder: claude-3-5-haiku-20241022.
+    # Verify this is the mid tier model with moderate quality/price trade-off.
+    name: "claude-3-5-haiku"
     tier: 0.5
-    price_per_1k_tokens: 0.00100 # Cite: Anthropic pricing docs ($1.00 / 1M input)
-    bucket_capacity: 6000.0
-    refill_rate_per_sec: 1000.0
+    # TODO(Gate1-human): Verify price from https://www.anthropic.com/api on the collection date.
+    # Current placeholder: $1.00/1M input tokens = $0.00100/1k. MUST be updated before collection.
+    price_per_1k_tokens: 0.00100
+    # TODO(Gate1-human): Set from your Anthropic account limits (Claude 3.5 Haiku RPM/TPM).
+    bucket_capacity: 6000.0       # PLACEHOLDER — check your account limits
+    refill_rate_per_sec: 1000.0   # PLACEHOLDER — check your account limits
     service_rate_per_sec: 3.0
+
   - id: "m2"
-    name: "gpt-4o"              # Example strong tier model
+    # TODO(Gate1-human): Confirm model name. Current placeholder: gpt-4o.
+    # Verify this is the strongest/most capable model in your evaluation.
+    name: "gpt-4o"
     tier: 1.0
-    price_per_1k_tokens: 0.00500 # Cite: OpenAI pricing docs ($5.00 / 1M input)
-    bucket_capacity: 3000.0
-    refill_rate_per_sec: 400.0
+    # TODO(Gate1-human): Verify price from https://openai.com/api/pricing/ on the collection date.
+    # Current placeholder: $5.00/1M input tokens = $0.00500/1k. MUST be updated before collection.
+    price_per_1k_tokens: 0.00500
+    # TODO(Gate1-human): Set from your OpenAI account TPM limit for gpt-4o (tier 1 = 30k TPM).
+    bucket_capacity: 3000.0       # PLACEHOLDER — check your account limits
+    refill_rate_per_sec: 400.0    # PLACEHOLDER — check your account limits
     service_rate_per_sec: 1.5
 
 cloud:
@@ -30,5 +58,7 @@ cloud:
   price_max: 3.0
 
 reward:
-  lambda_c: 10.0   # To be re-tuned on training tasks only (Gate 1)
-  lambda_l: 0.05
+  # TODO(Gate1-human): Re-tune lambda_c and lambda_l on TRAINING split only after real latency
+  # data is available. Do NOT use test-split outcomes to tune these.
+  lambda_c: 10.0   # PLACEHOLDER — retune after Gate 1 collection
+  lambda_l: 0.05   # PLACEHOLDER — retune after Gate 1 collection

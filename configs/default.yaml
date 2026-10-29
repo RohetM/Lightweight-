@@ -13,6 +13,7 @@ training:
   lr_index: 0.0005
   gamma: 0.95
   retrain_every_n: 100
+  retrain_steps: 200          # gradient steps taken in async_worker per retrain trigger
   epsilon_start: 0.30
   epsilon_end: 0.05
   epsilon_decay_runs: 1500   # linear

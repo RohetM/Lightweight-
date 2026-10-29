@@ -38,6 +38,7 @@ def generate_evaluation_plots(
         "ClairvoyantOracle",
         "CurrentStateOracle",
         "Proposed_Shapley",
+        "BestStaticPath",
         "RouteLLM",
         "Greedy",
         "Cheapest",
@@ -48,6 +49,7 @@ def generate_evaluation_plots(
         "ClairvoyantOracle": "black",
         "CurrentStateOracle": "purple",
         "Proposed_Shapley": "tab:blue",
+        "BestStaticPath": "teal",
         "RouteLLM": "tab:red",
         "Greedy": "tab:orange",
         "Cheapest": "tab:green",
@@ -58,6 +60,7 @@ def generate_evaluation_plots(
         "ClairvoyantOracle": "*",
         "CurrentStateOracle": "s",
         "Proposed_Shapley": "o",
+        "BestStaticPath": "P",
         "RouteLLM": "^",
         "Greedy": "v",
         "Cheapest": "x",
@@ -87,37 +90,55 @@ def generate_evaluation_plots(
     plt.close(fig)
     created_plots.append(fig1_path)
 
-    # 2. Fig 2: Delta vs RouteLLM with 95% Bootstrap CI
-    fig, ax = plt.subplots(figsize=(7, 4.5))
+    # 2. Fig 2: Delta vs Baselines (RouteLLM & BestStaticPath) with 95% Bootstrap CI
+    fig, ax = plt.subplots(figsize=(7.5, 4.8))
     if not delta_df.empty:
         delta_sorted = delta_df.sort_values("sigma")
         sigmas = delta_sorted["sigma"].values
-        deltas = delta_sorted["delta_mean"].values
-        ci_lowers = delta_sorted["ci_lower"].values
-        ci_uppers = delta_sorted["ci_upper"].values
 
-        yerr_lower = deltas - ci_lowers
-        yerr_upper = ci_uppers - deltas
-        yerr = [yerr_lower, yerr_upper]
+        # 1. Delta vs RouteLLM
+        if "delta_mean" in delta_sorted:
+            deltas_r = delta_sorted["delta_mean"].values
+            ci_lo_r = delta_sorted["ci_lower"].values
+            ci_hi_r = delta_sorted["ci_upper"].values
+            yerr_r = [deltas_r - ci_lo_r, ci_hi_r - deltas_r]
+            ax.errorbar(
+                sigmas,
+                deltas_r,
+                yerr=yerr_r,
+                fmt="o-",
+                color="tab:blue",
+                capsize=5,
+                capthick=1.5,
+                linewidth=2,
+                label=r"$\Delta(\sigma) = U(Proposed) - U(RouteLLM)$",
+            )
 
-        ax.errorbar(
-            sigmas,
-            deltas,
-            yerr=yerr,
-            fmt="o-",
-            color="tab:blue",
-            capsize=5,
-            capthick=1.5,
-            linewidth=2,
-            label=r"$\Delta(\sigma) = U(Proposed) - U(RouteLLM)$",
-        )
-        ax.axhline(0.0, color="tab:red", linestyle="--", linewidth=1.2, label="Parity (0.0)")
+        # 2. Delta vs BestStaticPath (if available)
+        if "delta_static_mean" in delta_sorted:
+            deltas_s = delta_sorted["delta_static_mean"].values
+            ci_lo_s = delta_sorted["ci_static_lower"].values
+            ci_hi_s = delta_sorted["ci_static_upper"].values
+            yerr_s = [deltas_s - ci_lo_s, ci_hi_s - deltas_s]
+            ax.errorbar(
+                sigmas,
+                deltas_s,
+                yerr=yerr_s,
+                fmt="s--",
+                color="teal",
+                capsize=5,
+                capthick=1.5,
+                linewidth=2,
+                label=r"$\Delta(\sigma) = U(Proposed) - U(BestStaticPath)$",
+            )
+
+        ax.axhline(0.0, color="tab:red", linestyle=":", linewidth=1.2, label="Parity (0.0)")
 
     ax.set_xlabel(r"Cloud Volatility $\sigma$")
-    ax.set_ylabel(r"$\Delta$ Utility vs. RouteLLM")
-    ax.set_title(f"Figure 2: Performance Gap vs RouteLLM (95% CI){tag}")
+    ax.set_ylabel(r"$\Delta$ Utility (Proposed vs. Baseline)")
+    ax.set_title(f"Figure 2: Performance Gap vs Baselines (95% CI){tag}")
     ax.grid(True, linestyle="--", alpha=0.6)
-    ax.legend(loc="best")
+    ax.legend(loc="best", fontsize=9)
     fig2_path = os.path.join(output_dir, "fig2_delta_vs_routellm.png")
     fig.savefig(fig2_path, dpi=200)
     plt.close(fig)

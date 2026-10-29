@@ -94,12 +94,15 @@ def generate_fallback_animation(output_path: str = "demo/working_model_demo.webm
 
 
 def record_playwright_video(port: int = 8501, output_path: str = "demo/working_model_demo.webm") -> bool:
-    """Attempt Playwright headless browser video recording."""
+    """Attempt Playwright headless browser video recording of Streamlit dashboard."""
     try:
         from playwright.sync_api import sync_playwright
     except ImportError:
         print("[Demo Record] Playwright not installed. Using Matplotlib animation fallback.")
         return False
+
+    import socket
+    import shutil
 
     chromium_path = "/opt/pw-browsers/chromium" if os.path.exists("/opt/pw-browsers/chromium") else None
 
@@ -109,9 +112,27 @@ def record_playwright_video(port: int = 8501, output_path: str = "demo/working_m
         "--server.port", str(port),
         "--server.headless", "true"
     ]
-    proc = subprocess.Popen(cmd)
-    time.sleep(3)
+    env = dict(os.environ)
+    env["PYTHONPATH"] = os.path.abspath(".")
+    proc = subprocess.Popen(cmd, env=env)
 
+    # Wait for Streamlit to be reachable
+    server_ready = False
+    for _ in range(30):
+        time.sleep(1)
+        try:
+            with socket.create_connection(("localhost", port), timeout=1):
+                server_ready = True
+                break
+        except (ConnectionRefusedError, OSError):
+            continue
+
+    if not server_ready:
+        print("[Demo Record] Streamlit server failed to start within 30s.")
+        proc.kill()
+        return False
+
+    print(f"[Demo Record] Streamlit running on http://localhost:{port}. Launching Chromium...")
     try:
         with sync_playwright() as p:
             launch_args = {"headless": True}
@@ -120,32 +141,65 @@ def record_playwright_video(port: int = 8501, output_path: str = "demo/working_m
 
             browser = p.chromium.launch(**launch_args)
             record_dir = os.path.dirname(os.path.abspath(output_path))
+            os.makedirs(record_dir, exist_ok=True)
             context = browser.new_context(
                 viewport={"width": 1280, "height": 720},
                 record_video_dir=record_dir,
                 record_video_size={"width": 1280, "height": 720},
             )
             page = context.new_page()
-            page.goto(f"http://localhost:{port}")
-            time.sleep(2)
+            page.goto(f"http://localhost:{port}", wait_until="networkidle", timeout=30000)
+            time.sleep(3)
 
-            # Click Run Simulation button if available
+            # Keep SYNTHETIC DATA banner clearly in view
+            # Click Run Live Multi-Agent Routing Simulation button if present
             btn = page.query_selector("button:has-text('Run Live Multi-Agent Routing Simulation')")
             if btn:
+                print("[Demo Record] Clicking 'Run Live Multi-Agent Routing Simulation' button...")
                 btn.click()
+                time.sleep(8)
+            else:
                 time.sleep(5)
 
+            # Scroll down to display all 4 figures and summary table
+            page.evaluate("window.scrollBy(0, 400)")
+            time.sleep(3)
+            page.evaluate("window.scrollBy(0, 600)")
+            time.sleep(3)
+            page.evaluate("window.scrollBy(0, 600)")
+            time.sleep(3)
+
+            # Retrieve recorded video file before closing context
+            video_ref = page.video
             context.close()
             browser.close()
 
-            # Find generated video in record_dir
-            for f in os.listdir(record_dir):
-                if f.endswith(".webm") and f != "working_model_demo.webm":
-                    orig_path = os.path.join(record_dir, f)
-                    if os.path.exists(output_path):
-                        os.remove(output_path)
-                    os.rename(orig_path, output_path)
-                    break
+            if video_ref:
+                recorded_file = video_ref.path()
+                if os.path.exists(output_path):
+                    os.remove(output_path)
+                shutil.copyfile(recorded_file, output_path)
+                print(f"[Demo Record] Playwright video recorded directly to {output_path}")
+            else:
+                # Find any webm in record_dir
+                for f in os.listdir(record_dir):
+                    if f.endswith(".webm") and f != os.path.basename(output_path):
+                        src = os.path.join(record_dir, f)
+                        if os.path.exists(output_path):
+                            os.remove(output_path)
+                        shutil.move(src, output_path)
+                        break
+
+        # Attempt mp4 conversion if ffmpeg exists
+        mp4_path = output_path.replace(".webm", ".mp4")
+        try:
+            subprocess.run(
+                ["ffmpeg", "-y", "-i", output_path, "-c:v", "libx264", "-crf", "23", mp4_path],
+                capture_output=True,
+                check=False,
+            )
+        except Exception:
+            pass
 
         return True
     except Exception as e:

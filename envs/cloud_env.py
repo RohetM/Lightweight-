@@ -37,6 +37,7 @@ class CloudEnv:
         self.prices_per_1k = np.array([m["price_per_1k_tokens"] for m in models_config], dtype=np.float64)
 
         self.queue_cap = float(cloud_config.get("queue_cap", 20.0))
+        self.arrival_multiplier = float(cloud_config.get("arrival_multiplier", 2.0))
         self.price_min = float(cloud_config.get("price_min", 0.5))
         self.price_max = float(cloud_config.get("price_max", 3.0))
         self.inter_task_gap_s = float(cloud_config.get("inter_task_gap_s", 1.0))
@@ -67,7 +68,7 @@ class CloudEnv:
         for k in range(self.n_arms):
             eff_refill = self.refill_rates[k] / (1.0 + self.sigma)
             self.buckets[k] = min(self.capacities[k], self.buckets[k] + eff_refill * dt)
-            arrivals = float(self.rng.poisson(2.0 * self.sigma * dt))
+            arrivals = float(self.rng.poisson(self.arrival_multiplier * self.sigma * dt))
             departures = float(self.rng.poisson(self.service_rates[k] * dt))
             self.queues[k] = min(self.queue_cap, max(0.0, self.queues[k] + arrivals - departures))
             noise = float(self.rng.normal(0.0, 0.15 * self.sigma))

@@ -25,6 +25,7 @@ def run_worker(
     trace_cache_path: str,
     credit_method: str = "shapley",
     retrain_every_n: int = 100,
+    retrain_steps: int = 200,
     poll_interval_s: float = 0.05,
     stop_flag: str | None = None,
     lambda_c: float = 10.0,
@@ -33,6 +34,7 @@ def run_worker(
     """Watch runs.jsonl, compute offline credit, and retrain router every N runs.
 
     Implements PRD Section 6 (M7) and Section 5.4.
+    retrain_steps: number of gradient steps taken from the replay buffer per trigger.
     """
     trace_cache = TraceCache(trace_cache_path)
     router = WhittleRouter(seed=42)
@@ -124,7 +126,7 @@ def run_worker(
 
                 # Every retrain_every_n runs, retrain router and save weights
                 if run_counter % retrain_every_n == 0:
-                    for _ in range(10):
+                    for _ in range(retrain_steps):
                         router.train_step()
                     router.save_weights(weights_file)
 
@@ -139,6 +141,7 @@ def main() -> None:
     parser.add_argument("--trace-cache", type=str, required=True)
     parser.add_argument("--credit-method", type=str, default="shapley", choices=["none", "loo", "shapley"])
     parser.add_argument("--retrain-every-n", type=int, default=100)
+    parser.add_argument("--retrain-steps", type=int, default=200, help="Gradient steps per retrain trigger")
     parser.add_argument("--poll-interval-s", type=float, default=0.05)
     parser.add_argument("--stop-flag", type=str, default=None)
     parser.add_argument("--lambda-c", type=float, default=10.0)
@@ -152,6 +155,7 @@ def main() -> None:
         trace_cache_path=args.trace_cache,
         credit_method=args.credit_method,
         retrain_every_n=args.retrain_every_n,
+        retrain_steps=args.retrain_steps,
         poll_interval_s=args.poll_interval_s,
         stop_flag=args.stop_flag,
         lambda_c=args.lambda_c,
@@ -166,4 +170,7 @@ if __name__ == "__main__":
 # Implementation Note:
 # Implemented async worker per PRD Section 6 (M7), Section 5.4, and Section 2 (S4).
 # Operates as a decoupled background process via subprocess.Popen.
+# retrain_steps (default 200) gradient steps are taken from the replay buffer per
+# retrain trigger, up from the original 10; configurable via --retrain-steps CLI arg
+# and configs/default.yaml training.retrain_steps.
 # Periodically retrains router and serializes updated weights.pt.
